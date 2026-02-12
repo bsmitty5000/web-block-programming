@@ -1,0 +1,186 @@
+{
+  "blocks": [
+    {
+      "id": "read-file",
+      "name": "Read File",
+      "category": "Input",
+      "description": "Reads content from a file",
+      "color": "#F5A623",
+      "outputType": "collection",
+      "parameters": [
+        {
+          "id": "path",
+          "name": "File Path",
+          "type": "TEXT",
+          "defaultValue": "",
+          "validation": { "required": true }
+        }
+      ]
+    },
+    {
+      "id": "http-request",
+      "name": "HTTP Request",
+      "category": "Input",
+      "description": "Makes an HTTP request to a URL",
+      "color": "#F5A623",
+      "outputType": "collection",
+      "parameters": [
+        {
+          "id": "url",
+          "name": "URL",
+          "type": "TEXT",
+          "defaultValue": "",
+          "validation": { "required": true }
+        },
+        {
+          "id": "method",
+          "name": "Method",
+          "type": "SELECT",
+          "defaultValue": "GET",
+          "options": [
+            { "label": "GET", "value": "GET" },
+            { "label": "POST", "value": "POST" },
+            { "label": "PUT", "value": "PUT" },
+            { "label": "DELETE", "value": "DELETE" }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "filter",
+      "name": "Filter",
+      "category": "Transform",
+      "description": "Filters items based on a condition",
+      "color": "#4A90D9",
+      "inputType": "collection",
+      "outputType": "collection",
+      "parameters": [
+        {
+          "id": "field",
+          "name": "Field",
+          "type": "TEXT",
+          "defaultValue": "",
+          "validation": { "required": true }
+        },
+        {
+          "id": "operator",
+          "name": "Operator",
+          "type": "SELECT",
+          "defaultValue": "equals",
+          "options": [
+            { "label": "Equals", "value": "equals" },
+            { "label": "Contains", "value": "contains" },
+            { "label": "Greater Than", "value": "gt" }
+          ]
+        },
+        {
+          "id": "value",
+          "name": "Value",
+          "type": "TEXT",
+          "defaultValue": ""
+        }
+      ]
+    },
+    {
+      "id": "sort",
+      "name": "Sort",
+      "category": "Transform",
+      "description": "Sorts items by a field",
+      "color": "#4A90D9",
+      "inputType": "collection",
+      "outputType": "collection",
+      "parameters": [
+        {
+          "id": "field",
+          "name": "Field",
+          "type": "TEXT",
+          "defaultValue": "",
+          "validation": { "required": true }
+        },
+        {
+          "id": "direction",
+          "name": "Direction",
+          "type": "SELECT",
+          "defaultValue": "asc",
+          "options": [
+            { "label": "Ascending", "value": "asc" },
+            { "label": "Descending", "value": "desc" }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "map",
+      "name": "Map",
+      "category": "Transform",
+      "description": "Transforms each item using an expression",
+      "color": "#4A90D9",
+      "inputType": "collection",
+      "outputType": "collection",
+      "parameters": [
+        {
+          "id": "expression",
+          "name": "Expression",
+          "type": "TEXT",
+          "defaultValue": "",
+          "validation": { "required": true }
+        }
+      ]
+    },
+    {
+      "id": "write-file",
+      "name": "Write File",
+      "category": "Output",
+      "description": "Writes content to a file",
+      "color": "#7ED321",
+      "inputType": "collection",
+      "parameters": [
+        {
+          "id": "path",
+          "name": "File Path",
+          "type": "TEXT",
+          "defaultValue": "",
+          "validation": { "required": true }
+        }
+      ]
+    },
+    {
+      "id": "log",
+      "name": "Log",
+      "category": "Output",
+      "description": "Logs items to the console",
+      "color": "#7ED321",
+      "inputType": "collection",
+      "parameters": []
+    },
+    {
+      "id": "send-email",
+      "name": "Send Email",
+      "category": "Output",
+      "description": "Sends items via email",
+      "color": "#7ED321",
+      "inputType": "collection",
+      "parameters": [
+        {
+          "id": "to",
+          "name": "To",
+          "type": "TEXT",
+          "defaultValue": "",
+          "validation": { "required": true }
+        },
+        {
+          "id": "subject",
+          "name": "Subject",
+          "type": "TEXT",
+          "defaultValue": ""
+        },
+        {
+          "id": "body",
+          "name": "Body",
+          "type": "TEXT",
+          "defaultValue": ""
+        }
+      ]
+    }
+  ]
+}

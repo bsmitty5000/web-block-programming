@@ -1,3 +1,9 @@
+import { BlockPalette } from "./palette/BlockPalette";
+import { BlockRegistry } from "../services/BlockRegistry";
+import { BlockDefinitionConfig } from "../types/blocks";
+import blocksData from '../config/blocks.json';
+
+const sampleBlocks = blocksData as BlockDefinitionConfig;
 
 export class App {
   private rootEl: HTMLElement;
@@ -16,6 +22,10 @@ export class App {
 
     this.rootEl.appendChild(this.paletteContainerEl);
     this.rootEl.appendChild(this.canvasContainerEl);
+
+    const registry = new BlockRegistry();
+    registry.loadFromConfig(sampleBlocks);
+    new BlockPalette(this.paletteContainerEl, registry);
    }
 
   getRootElement(): HTMLElement {

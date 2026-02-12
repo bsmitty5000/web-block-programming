@@ -11,9 +11,83 @@ html, body {
   color: #cdd6f4;
 }
 
+/* ── App Shell (two-panel layout) ── */
+
 #app {
   height: 100%;
+}
+
+.app {
   display: flex;
-  align-items: center;
-  justify-content: center;
+  height: 100%;
+}
+
+.app__palette {
+  width: 260px;
+  min-width: 260px;
+  height: 100%;
+  overflow-y: auto;
+  background: #181825;
+  border-right: 1px solid #313244;
+  padding: 12px;
+}
+
+.app__canvas {
+  flex: 1;
+  height: 100%;
+  overflow-y: auto;
+  background: #1e1e2e;
+  padding: 20px;
+}
+
+/* ── Palette ── */
+
+.category-group {
+  margin-bottom: 16px;
+}
+
+.category-group h2 {
+  font-size: 12px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: #a6adc8;
+  padding: 8px 4px;
+  user-select: none;
+}
+
+.category-group h2:hover {
+  color: #cdd6f4;
+}
+
+.block-list {
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.palette-block {
+  border-radius: 6px;
+  padding: 8px 10px;
+  cursor: grab;
+  user-select: none;
+  transition: opacity 0.15s ease;
+}
+
+.palette-block:hover {
+  opacity: 0.85;
+}
+
+.palette-block h3 {
+  font-size: 13px;
+  font-weight: 600;
+  color: #1e1e2e;
+  margin-bottom: 2px;
+}
+
+.palette-block p {
+  font-size: 11px;
+  color: #313244;
+  line-height: 1.3;
 }
