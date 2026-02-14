@@ -7,7 +7,11 @@ export class BlockPalette
     private registry: BlockRegistry;
     private categoryGroups: CategoryGroup[] = [];
 
-    constructor(container: HTMLElement, registry: BlockRegistry)
+    constructor(
+        container: HTMLElement,
+        registry: BlockRegistry,
+        onDragStart?: (definitionId: string, mouseX: number, mouseY: number) => void
+    )
     {
         this.containerEl = container;
         this.registry = registry;
@@ -15,7 +19,9 @@ export class BlockPalette
 
         categories.forEach((category, _) =>
         {
-            this.categoryGroups.push(new CategoryGroup(category, this.registry.getByCategory(category)));
+            this.categoryGroups.push(
+                new CategoryGroup(category, this.registry.getByCategory(category), onDragStart)
+            );
         })
 
         this.render();

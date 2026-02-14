@@ -11,11 +11,10 @@ describe('smoke test', () => {
     expect(() => init(container)).not.toThrow();
   });
 
-  it('renders a heading into the container', () => {
+  it('renders the app layout into the container', () => {
     const container = document.getElementById('app')!;
     init(container);
-    const heading = container.querySelector('h1');
-    expect(heading).not.toBeNull();
-    expect(heading!.textContent).toBe('Block Programming App');
+    expect(container.querySelector('.app__palette')).not.toBeNull();
+    expect(container.querySelector('.app__canvas')).not.toBeNull();
   });
 });

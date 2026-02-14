@@ -9,11 +9,15 @@ export class CategoryGroup
     private collapsed: boolean = false;
     private blocks: PaletteBlock[];
 
-    constructor(categoryGroup: string, definitions: BlockDefinition[])
+    constructor(
+        categoryGroup: string,
+        definitions: BlockDefinition[],
+        onDragStart?: (definitionId: string, mouseX: number, mouseY: number) => void
+    )
     {
         this.containerEl = document.createElement('div');
         this.containerEl.className = 'category-group';
-        
+
         this.headerEl = document.createElement('h2');
         this.headerEl.textContent = categoryGroup;
         this.headerEl.style.cursor = 'pointer';
@@ -22,7 +26,7 @@ export class CategoryGroup
         this.blockListEl = document.createElement('ul');
         this.blockListEl.className = 'block-list';
 
-        this.blocks = definitions.map(def => new PaletteBlock(def));
+        this.blocks = definitions.map(def => new PaletteBlock(def, onDragStart));
 
         this.blocks.forEach((pb, _) =>
         {

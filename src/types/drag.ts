@@ -1,15 +1,18 @@
-export interface Position {
+export interface Position 
+{
   x: number;
   y: number;
 }
 
-export interface DropTarget {
+export interface DropTarget 
+{
   columnIndex: number;
   orderIndex: number;
   indicatorY: number;
 }
 
-export interface DragState {
+export interface DragState 
+{
   source: 'palette' | 'canvas';
   definitionId: string;
   instanceId: string | null;

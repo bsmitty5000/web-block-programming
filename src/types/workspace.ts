@@ -1,4 +1,5 @@
-export interface BlockInstance {
+export interface BlockInstance 
+{
   id: string;
   definitionId: string;
   columnIndex: number;
@@ -6,12 +7,14 @@ export interface BlockInstance {
   parameterValues: Record<string, unknown>;
 }
 
-export interface Column {
+export interface Column 
+{
   index: number;
   blocks: BlockInstance[];
 }
 
-export interface WorkspaceConfig {
+export interface WorkspaceConfig 
+{
   columnCount: number;
   columnWidthPx: number;
   blockGapPx: number;

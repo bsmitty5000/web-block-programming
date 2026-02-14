@@ -5,7 +5,7 @@ export class PaletteBlock
     private containerEl: HTMLElement;
     private definition: BlockDefinition;
 
-    constructor(definition: BlockDefinition)
+    constructor(definition: BlockDefinition, onDragStart?: (definitionId: string, mouseX: number, mouseY: number) => void)
     {
         this.definition = definition;
         this.containerEl = document.createElement('div');
@@ -20,6 +20,14 @@ export class PaletteBlock
 
         this.containerEl.appendChild(header);
         this.containerEl.appendChild(description);
+
+        if (onDragStart)
+        {
+            this.containerEl.addEventListener('mousedown', (e: MouseEvent) => {
+                e.preventDefault();
+                onDragStart(definition.id, e.clientX, e.clientY);
+            });
+        }
     }
 
     getDefinitionId(): string

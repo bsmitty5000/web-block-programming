@@ -239,12 +239,23 @@ export type HostMessage =
 ```
 
 **`src/components/App.ts`**
+
+The top-level UI shell. `App` owns the two-panel layout and acts as the root container that later phases attach sub-components to (palette, canvas, toolbar). It is instantiated once by `init()` in `index.ts` and receives the page's root container element.
+
 ```typescript
 export class App {
   private rootEl: HTMLElement;
   private paletteContainerEl: HTMLElement;
   private canvasContainerEl: HTMLElement;
 
+  /**
+   * Creates the two-panel DOM structure and appends it to `container`.
+   * 1. Creates `rootEl` — a `<div class="app">` using flexbox row layout.
+   * 2. Creates `paletteContainerEl` — a `<div class="app__palette">` (narrow left panel, ~250px fixed width).
+   * 3. Creates `canvasContainerEl` — a `<div class="app__canvas">` (fills remaining width via flex: 1).
+   * 4. Appends palette and canvas to root, then root to `container`.
+   * 5. Both panels initially contain placeholder text ("Palette" / "Canvas") which later phases replace with real content.
+   */
   constructor(container: HTMLElement) { ... }
 
   /** Creates the two-panel DOM structure and appends it to the container. */
@@ -256,11 +267,11 @@ export class App {
 }
 ```
 
-The `App` constructor creates:
-```
-<div class="app">
-  <div class="app__palette">Palette</div>
-  <div class="app__canvas">Canvas</div>
+The resulting DOM structure:
+```html
+<div class="app">                     <!-- rootEl: flexbox row, full viewport height -->
+  <div class="app__palette">Palette</div>  <!-- paletteContainerEl: fixed width, scrollable overflow-y -->
+  <div class="app__canvas">Canvas</div>    <!-- canvasContainerEl: flex: 1, scrollable overflow-y -->
 </div>
 ```
 
@@ -293,12 +304,16 @@ src/config/
 ### Class definitions
 
 **`src/services/BlockRegistry.ts`**
+
+The read-only catalog of block templates. `BlockRegistry` stores `BlockDefinition` objects (loaded from `blocks.json`) and provides lookup methods used by the palette (to render the block catalog), the workspace manager (to resolve a definition when creating instances), and the layout engine (to compute block heights from parameter counts). It is created once at app startup and shared by reference — it is never mutated after initial loading.
+
 ```typescript
 import { BlockDefinition, BlockDefinitionConfig } from '../types/blocks';
 
 export class BlockRegistry {
   private definitions: Map<string, BlockDefinition>;
 
+  /** Initializes an empty `definitions` map. Call `loadFromConfig()` to populate. */
   constructor() { ... }
 
   /** Register a single block definition. Throws if ID already exists. */
@@ -357,6 +372,9 @@ src/components/App.ts        # (modified — accept registry, create palette)
 ### Class definitions
 
 **`src/components/palette/BlockPalette.ts`**
+
+The palette panel's root component. It reads all block definitions from the registry, groups them by category, and creates a `CategoryGroup` for each one. The palette is the left panel of the app — it provides a scrollable catalog of available blocks that users can later drag onto the canvas.
+
 ```typescript
 import { BlockRegistry } from '../../services/BlockRegistry';
 
@@ -365,9 +383,20 @@ export class BlockPalette {
   private registry: BlockRegistry;
   private categoryGroups: CategoryGroup[];
 
+  /**
+   * 1. Stores `container` and `registry` references.
+   * 2. Creates `containerEl` — a `<div class="palette">` appended to `container`.
+   * 3. Calls `render()` to populate the palette.
+   */
   constructor(container: HTMLElement, registry: BlockRegistry) { ... }
 
-  /** Queries the registry and builds the full palette DOM. */
+  /**
+   * 1. Calls `registry.getCategories()` to get sorted category names.
+   * 2. For each category, calls `registry.getByCategory(name)` to get its definitions.
+   * 3. Creates a `CategoryGroup` for each category, passing the name and definitions.
+   * 4. Appends each group's element to `containerEl`.
+   * 5. Stores all groups in `categoryGroups` for later use (search filtering in Phase 11).
+   */
   private render(): void { ... }
 
   getElement(): HTMLElement { ... }
@@ -375,6 +404,9 @@ export class BlockPalette {
 ```
 
 **`src/components/palette/CategoryGroup.ts`**
+
+A collapsible section within the palette containing all blocks of a single category. Renders a clickable header (e.g., "Input", "Transform") followed by a list of `PaletteBlock` cards. Categories start expanded (not collapsed).
+
 ```typescript
 import { BlockDefinition } from '../../types/blocks';
 
@@ -385,9 +417,23 @@ export class CategoryGroup {
   private collapsed: boolean;
   private blocks: PaletteBlock[];
 
+  /**
+   * 1. Sets `collapsed = false` (expanded by default).
+   * 2. Creates `containerEl` — `<div class="category-group">`.
+   * 3. Creates `headerEl` — `<div class="category-group__header">` with text set to `categoryName`.
+   *    Adds a click listener that calls `toggle()`.
+   * 4. Creates `blockListEl` — `<div class="category-group__blocks">`.
+   * 5. For each definition in `definitions`, creates a `PaletteBlock` and appends its element to `blockListEl`.
+   * 6. Stores the `PaletteBlock` instances in `blocks`.
+   * 7. Appends `headerEl` and `blockListEl` to `containerEl`.
+   */
   constructor(categoryName: string, definitions: BlockDefinition[]) { ... }
 
-  /** Toggle collapsed state — hides/shows the block list. */
+  /**
+   * Flips `collapsed` boolean. When collapsed, sets `blockListEl.style.display = 'none'`.
+   * When expanded, sets it to `''` (or `'block'`). Optionally toggles a CSS class on
+   * `headerEl` (e.g., `category-group__header--collapsed`) for a chevron rotation.
+   */
   toggle(): void { ... }
 
   getElement(): HTMLElement { ... }
@@ -395,6 +441,9 @@ export class CategoryGroup {
 ```
 
 **`src/components/palette/PaletteBlock.ts`**
+
+A single block card in the palette. Displays the block's name and description with a colored background matching the block definition's `color` field. In Phase 5, a `mousedown` handler will be added to initiate drag-from-palette.
+
 ```typescript
 import { BlockDefinition } from '../../types/blocks';
 
@@ -402,6 +451,15 @@ export class PaletteBlock {
   private containerEl: HTMLElement;
   private definition: BlockDefinition;
 
+  /**
+   * 1. Stores the `definition` reference.
+   * 2. Creates `containerEl` — `<div class="palette-block">`.
+   * 3. Sets `containerEl.style.backgroundColor` (or `borderLeft`/`borderTop`) to `definition.color`.
+   * 4. Creates a `<span class="palette-block__name">` with `definition.name`.
+   * 5. Creates a `<span class="palette-block__description">` with `definition.description`.
+   * 6. Appends both spans to `containerEl`.
+   * 7. Stores `definition.id` as a data attribute (`data-definition-id`) for later retrieval.
+   */
   constructor(definition: BlockDefinition) { ... }
 
   /** Returns the block definition ID (used later for drag initiation). */
@@ -410,8 +468,6 @@ export class PaletteBlock {
   getElement(): HTMLElement { ... }
 }
 ```
-
-Each `PaletteBlock` creates a `<div>` styled with the block's `color`, displaying the block `name` and a short `description`.
 
 ### Tests added
 
@@ -451,21 +507,33 @@ src/index.ts                 # (modified — wire everything together)
 ### Class definitions
 
 **`src/services/EventBus.ts`**
+
+A lightweight publish/subscribe system for decoupling components. Components emit events (e.g., `'workspace:changed'`, `'command:executed'`) without knowing who listens. Used by `WorkspaceManager` to notify the UI of state changes and by `CommandManager` to signal undo/redo availability changes. A single `EventBus` instance is created at startup and shared across the app.
+
 ```typescript
 type EventCallback = (...args: unknown[]) => void;
 
 export class EventBus {
   private listeners: Map<string, Set<EventCallback>>;
 
+  /** Initializes an empty `listeners` map. */
   constructor() { ... }
 
+  /** Adds `callback` to the set of listeners for `event`. Creates the set if this is the first listener for that event. */
   on(event: string, callback: EventCallback): void { ... }
+
+  /** Removes `callback` from the listener set for `event`. No-op if not found. */
   off(event: string, callback: EventCallback): void { ... }
+
+  /** Calls every listener registered for `event`, passing `args`. Silently does nothing if no listeners exist for the event. */
   emit(event: string, ...args: unknown[]): void { ... }
 }
 ```
 
 **`src/services/LayoutEngine.ts`**
+
+Pure math service — no DOM manipulation. Given workspace state and block definitions, it computes pixel positions and sizes for all visual elements. It is the single source of truth for "where does this block go on screen?" Used by `WorkspaceManager.reflowColumn()` to position block DOM elements and by `DragManager` to determine drop targets during a drag.
+
 ```typescript
 import { BlockInstance, Column, Workspace, WorkspaceConfig } from '../types/workspace';
 import { Position, DropTarget } from '../types/drag';
@@ -480,26 +548,55 @@ export class LayoutEngine {
   static readonly BLOCK_PADDING_PX = 8;
   static readonly COLUMN_GAP_PX = 16;
 
+  /** Stores the registry reference for later use in parameter count lookups. */
   constructor(registry: BlockRegistry) { ... }
 
-  /** Compute the pixel position of a block given the workspace state. */
+  /**
+   * Convenience method: returns { x, y } for a block by combining
+   * `calculateColumnX(block.columnIndex, ...)` and `calculateBlockY(block.orderIndex, ...)`.
+   */
   calculateBlockPosition(block: BlockInstance, workspace: Workspace): Position { ... }
 
-  /** Compute the x pixel position for a column. */
+  /**
+   * Returns the x pixel offset for a column.
+   * Formula: `config.canvasPaddingPx + columnIndex * (config.columnWidthPx + COLUMN_GAP_PX)`.
+   */
   calculateColumnX(columnIndex: number, config: WorkspaceConfig): number { ... }
 
-  /** Compute the y pixel position for a block at a given order index within a column. */
+  /**
+   * Returns the y pixel offset for a block at `orderIndex` within `column`.
+   * Iterates blocks 0..orderIndex-1 in the column, sums their heights + `config.blockGapPx`
+   * between each, starting from `config.canvasPaddingPx` (or 0 if padding is on the container).
+   * Needs the registry to look up each block's definition and count its parameters.
+   */
   calculateBlockY(orderIndex: number, column: Column): number { ... }
 
-  /** Compute the pixel height of a block based on its parameter count. */
+  /**
+   * Returns the pixel height of a block.
+   * Formula: `HEADER_HEIGHT_PX + (paramCount * PARAM_ROW_HEIGHT_PX) + BLOCK_PADDING_PX`.
+   * Looks up `registry.get(block.definitionId).parameters.length` to get `paramCount`.
+   */
   getBlockHeight(block: BlockInstance): number { ... }
 
-  /** Given a mouse position, determine the target column and insertion index. */
+  /**
+   * Hit-test: given mouse coordinates (relative to the canvas container), determines
+   * which column the mouse is over (by comparing mouseX against column x ranges) and
+   * which insertion slot the mouse is closest to (by comparing mouseY against block
+   * y positions in that column). Returns `{ columnIndex, orderIndex, indicatorY }` or
+   * `null` if the mouse is outside all columns.
+   *
+   * `indicatorY` is the y pixel position where a drop indicator line should be drawn.
+   */
   getDropTarget(mouseX: number, mouseY: number, workspace: Workspace): DropTarget | null { ... }
 }
 ```
 
 **`src/services/WorkspaceManager.ts`**
+
+The central state manager for the workspace. Owns the `Workspace` data model (columns and block instances), handles all mutations (add, remove, move, copy, update parameters), and keeps the DOM in sync after each mutation via `reflowColumn()`. Also maintains maps of block/column DOM elements so it can position them. Think of it as the "model + controller" for the canvas — it holds the truth and updates the view.
+
+In Phase 9, the public mutation methods will be refactored to go through `CommandManager` for undo/redo support (see Phase 9 architecture note).
+
 ```typescript
 import { BlockInstance, Column, Workspace, WorkspaceConfig } from '../types/workspace';
 import { BlockRegistry } from './BlockRegistry';
@@ -515,6 +612,14 @@ export class WorkspaceManager {
   private events: EventBus;
   private nextInstanceId: number;
 
+  /**
+   * 1. Stores references to `registry`, `layoutEngine`, and `events`.
+   * 2. Initializes `nextInstanceId = 1`.
+   * 3. Initializes empty `blockElements` and `columnElements` maps.
+   * 4. Creates the `workspace` object: `{ config, columns: [] }`.
+   * 5. Populates `workspace.columns` with `config.columnCount` empty `Column` objects,
+   *    each with `{ index: i, blocks: [] }`.
+   */
   constructor(
     config: WorkspaceConfig,
     registry: BlockRegistry,
@@ -522,51 +627,95 @@ export class WorkspaceManager {
     events: EventBus
   ) { ... }
 
-  /** Create a new block instance and its DOM element, insert into the specified column. */
+  /**
+   * 1. Generates a unique instance ID via `generateId()`.
+   * 2. Looks up the `BlockDefinition` from the registry using `definitionId`.
+   * 3. Creates a `BlockInstance` with the generated ID, definitionId, columnIndex, orderIndex,
+   *    and `parameterValues` pre-filled with each parameter's `defaultValue`.
+   * 4. Splices the instance into `workspace.columns[columnIndex].blocks` at `orderIndex`.
+   * 5. Updates `orderIndex` values for all subsequent blocks in the column.
+   * 6. Creates a `CanvasBlock` component (or the DOM element for the block) and registers it
+   *    via `registerBlockElement()`. Appends the element to the column's DOM element.
+   * 7. Calls `reflowColumn(columnIndex)` to reposition all blocks in the column.
+   * 8. Emits `'workspace:changed'` on the event bus.
+   * 9. Returns the created `BlockInstance`.
+   */
   addBlock(definitionId: string, columnIndex: number, orderIndex: number): BlockInstance { ... }
 
-  /** Remove a block instance and its DOM element from the workspace. */
+  /**
+   * 1. Finds the block instance by `instanceId` (search all columns).
+   * 2. Removes the block from its column's `blocks` array.
+   * 3. Updates `orderIndex` values for remaining blocks in that column.
+   * 4. Removes the block's DOM element from the DOM and from `blockElements`.
+   * 5. Calls `reflowColumn()` for the affected column.
+   * 6. Emits `'workspace:changed'`.
+   */
   removeBlock(instanceId: string): void { ... }
 
-  /** Move a block to a new column and/or order position. */
+  /**
+   * 1. Finds the block by `instanceId`, records its current column/order.
+   * 2. Removes it from the source column's `blocks` array.
+   * 3. Updates the block's `columnIndex` and `orderIndex` to the new values.
+   * 4. Splices it into the target column's `blocks` array at `toOrder`.
+   * 5. Updates `orderIndex` values for both source and target columns.
+   * 6. Moves the DOM element from the source column element to the target column element.
+   * 7. Calls `reflowColumn()` for both affected columns.
+   * 8. Emits `'workspace:changed'`.
+   */
   moveBlock(instanceId: string, toColumn: number, toOrder: number): void { ... }
 
-  /** Deep-copy a block and insert the copy directly below the original. */
+  /**
+   * 1. Finds the source block by `instanceId`.
+   * 2. Deep-copies `parameterValues` (structuredClone or JSON round-trip).
+   * 3. Calls `addBlock()` with the same `definitionId`, same `columnIndex`,
+   *    and `orderIndex = source.orderIndex + 1` (directly below the original).
+   * 4. Overwrites the new block's `parameterValues` with the copied values.
+   * 5. Returns the new `BlockInstance`.
+   */
   copyBlock(instanceId: string): BlockInstance { ... }
 
-  /** Update a parameter value on a block instance. */
+  /** Finds the block by ID and sets `parameterValues[paramId] = value`. Emits `'workspace:changed'`. */
   updateParameter(instanceId: string, paramId: string, value: unknown): void { ... }
 
   /** Get a column by index. */
   getColumn(index: number): Column { ... }
 
-  /** Get a block instance by ID. */
+  /** Get a block instance by ID. Throws if not found. */
   getBlock(instanceId: string): BlockInstance { ... }
 
-  /** Get the full workspace state. */
+  /** Get the full workspace state (returns the workspace object reference). */
   getWorkspace(): Workspace { ... }
 
-  /** Register a column's DOM element (called during canvas setup). */
+  /** Stores a column's DOM element in `columnElements` map, keyed by column index. */
   registerColumnElement(index: number, el: HTMLElement): void { ... }
 
-  /** Register a block's DOM element (called when block is created). */
+  /** Stores a block's DOM element in `blockElements` map, keyed by instance ID. */
   registerBlockElement(instanceId: string, el: HTMLElement): void { ... }
 
-  /** Get the DOM element for a block instance. */
+  /** Get the DOM element for a block instance, or undefined if not registered. */
   getBlockElement(instanceId: string): HTMLElement | undefined { ... }
 
-  /** Subscribe to workspace state changes. */
+  /** Subscribes to the `'workspace:changed'` event on the event bus. */
   onStateChange(callback: () => void): void { ... }
 
-  /** Generate a unique instance ID. */
+  /** Returns `'block-${nextInstanceId++}'`. */
   private generateId(): string { ... }
 
-  /** Recalculate and apply positions for all blocks in a column. */
+  /**
+   * Iterates all blocks in the given column. For each block:
+   * 1. Calls `layoutEngine.calculateBlockY(block.orderIndex, column)` to get its y position.
+   * 2. Looks up the block's DOM element from `blockElements`.
+   * 3. Sets `element.style.transform = 'translateY(${y}px)'` (or sets `top`).
+   * This ensures blocks stack correctly after any add/remove/move operation.
+   */
   private reflowColumn(columnIndex: number): void { ... }
 }
 ```
 
 **`src/components/canvas/CanvasPanel.ts`**
+
+The canvas area's root component. It creates the column layout container and instantiates `CanvasColumn` components based on the workspace config's `columnCount`. It also registers each column's DOM element with `WorkspaceManager` so the manager can append block elements to them.
+
 ```typescript
 import { WorkspaceManager } from '../../services/WorkspaceManager';
 
@@ -576,9 +725,21 @@ export class CanvasPanel {
   private columns: CanvasColumn[];
   private workspaceManager: WorkspaceManager;
 
+  /**
+   * 1. Stores `workspaceManager` reference.
+   * 2. Creates `containerEl` — `<div class="canvas">` appended to `container`.
+   * 3. Calls `render()`.
+   */
   constructor(container: HTMLElement, workspaceManager: WorkspaceManager) { ... }
 
-  /** Creates the column container and individual column elements. */
+  /**
+   * 1. Creates `columnsContainerEl` — `<div class="canvas__columns">` with flexbox row layout.
+   * 2. Reads `workspaceManager.getWorkspace().config.columnCount`.
+   * 3. For each column index, creates a `CanvasColumn` and appends its element to `columnsContainerEl`.
+   * 4. Registers each column's DOM element with `workspaceManager.registerColumnElement(index, el)`.
+   * 5. Stores the `CanvasColumn` instances in `columns`.
+   * 6. Appends `columnsContainerEl` to `containerEl`.
+   */
   private render(): void { ... }
 
   getElement(): HTMLElement { ... }
@@ -586,12 +747,22 @@ export class CanvasPanel {
 ```
 
 **`src/components/canvas/CanvasColumn.ts`**
+
+A single vertical lane in the canvas grid. Columns have a fixed width (from `WorkspaceConfig.columnWidthPx`) and are positioned side by side. Blocks are appended as children and positioned absolutely within the column using `top`/`transform` values set by `WorkspaceManager.reflowColumn()`.
+
 ```typescript
 export class CanvasColumn {
   private containerEl: HTMLElement;
   private headerEl: HTMLElement;
   private index: number;
 
+  /**
+   * 1. Stores `index`.
+   * 2. Creates `containerEl` — `<div class="canvas-column">` with `position: relative`
+   *    (so child blocks can be positioned absolutely within it).
+   * 3. Creates `headerEl` — `<div class="canvas-column__header">` displaying
+   *    `"Column ${index + 1}"` (or just the index). Appended to `containerEl`.
+   */
   constructor(index: number) { ... }
 
   getElement(): HTMLElement { ... }
@@ -600,6 +771,9 @@ export class CanvasColumn {
 ```
 
 **`src/components/canvas/CanvasBlock.ts`**
+
+A block instance rendered on the canvas. Unlike `PaletteBlock` (which represents a template), `CanvasBlock` represents a placed instance with its own ID, parameter values, and position. It renders a colored header bar (via `BlockHeader`) and, in Phase 6, inline parameter inputs below the header.
+
 ```typescript
 import { BlockInstance } from '../../types/workspace';
 import { BlockDefinition } from '../../types/blocks';
@@ -610,9 +784,21 @@ export class CanvasBlock {
   private instance: BlockInstance;
   private definition: BlockDefinition;
 
+  /**
+   * 1. Stores `instance` and `definition`.
+   * 2. Creates `containerEl` — `<div class="canvas-block">` with `position: absolute`
+   *    (positioned by WorkspaceManager.reflowColumn via transform/top).
+   * 3. Sets width to match the column width.
+   * 4. Calls `render()`.
+   */
   constructor(instance: BlockInstance, definition: BlockDefinition) { ... }
 
-  /** Build the block DOM: colored header with name, action buttons placeholder. */
+  /**
+   * 1. Creates a `BlockHeader` component, passing `definition` and placeholder callbacks
+   *    for delete/copy (wired in Phase 8).
+   * 2. Appends the header element to `containerEl`.
+   * 3. (Phase 6) Will also create parameter input rows here.
+   */
   private render(): void { ... }
 
   getElement(): HTMLElement { ... }
@@ -621,12 +807,25 @@ export class CanvasBlock {
 ```
 
 **`src/components/canvas/BlockHeader.ts`**
+
+The colored top bar of a canvas block. Shows the block name and action buttons (delete, copy). The background color comes from `definition.color`. Action buttons are rendered as small icons or text buttons on the right side of the header. The header also serves as the drag handle in Phase 7 (mousedown on the header initiates a canvas drag).
+
 ```typescript
 import { BlockDefinition } from '../../types/blocks';
 
 export class BlockHeader {
   private containerEl: HTMLElement;
 
+  /**
+   * 1. Creates `containerEl` — `<div class="block-header">` with flexbox row layout.
+   * 2. Sets `containerEl.style.backgroundColor` to `definition.color`.
+   * 3. Creates a `<span class="block-header__name">` with `definition.name`.
+   * 4. Creates a button group `<div class="block-header__actions">`:
+   *    - Copy button: calls `onCopy()` on click (if provided).
+   *    - Delete button: calls `onDelete()` on click (if provided).
+   *    - Buttons are disabled/hidden if callbacks are undefined (Phase 4 has no wiring yet).
+   * 5. Appends name and button group to `containerEl`.
+   */
   constructor(
     definition: BlockDefinition,
     onDelete?: () => void,
@@ -676,6 +875,16 @@ src/styles/
 ### Class definitions
 
 **`src/services/DragManager.ts`**
+
+Orchestrates the entire drag-and-drop lifecycle. It tracks drag state (where the drag started, where the cursor is, what the current drop target is), manages the ghost preview and drop indicator visuals, and commits the result on drop. There are two drag origins: palette (creates a new block) and canvas (moves an existing block, added in Phase 7). The drag flow is:
+
+1. `startPaletteDrag()` / `startCanvasDrag()` → creates `DragState`, shows ghost
+2. `updateDrag()` (called on every mousemove) → moves ghost, computes drop target via `LayoutEngine.getDropTarget()`, shows/hides indicator
+3. `endDrag()` (called on mouseup) → reads final drop target, calls `WorkspaceManager.addBlock()` or `.moveBlock()`, cleans up visuals
+4. `cancelDrag()` (called on Escape) → cleans up visuals, restores original state if canvas drag
+
+The `DragManager` is created once in `App` and wired to document-level mouse/keyboard events.
+
 ```typescript
 import { DragState, DropTarget } from '../types/drag';
 import { LayoutEngine } from './LayoutEngine';
@@ -689,63 +898,113 @@ export class DragManager {
   private dropIndicatorEl: HTMLElement | null;
   private blockElements: Map<string, HTMLElement>;
 
+  /**
+   * 1. Stores `layoutEngine` and `workspaceManager` references.
+   * 2. Sets `currentDrag = null`, `ghostEl = null`, `dropIndicatorEl = null`.
+   * 3. Initializes empty `blockElements` map.
+   */
   constructor(layoutEngine: LayoutEngine, workspaceManager: WorkspaceManager) { ... }
 
-  /** Begin a drag originating from the palette. */
+  /**
+   * 1. Creates a `DragState` with `source: 'palette'`, the given `definitionId`,
+   *    `instanceId: null`, `originColumn: null`, `originOrder: null`.
+   * 2. Sets `mouseX`/`mouseY` on the state.
+   * 3. Shows the ghost element with the block's name and color (looked up from the registry
+   *    via workspaceManager or passed in).
+   * 4. Positions the ghost at the cursor via `updateGhostPosition()`.
+   */
   startPaletteDrag(definitionId: string, mouseX: number, mouseY: number): void { ... }
 
-  /** Begin a drag originating from an existing canvas block. */
+  /**
+   * (Phase 7) 1. Looks up the block instance and its current column/order.
+   * 2. Creates a `DragState` with `source: 'canvas'`, the block's `definitionId`,
+   *    `instanceId`, and `originColumn`/`originOrder` recorded for cancel-restore.
+   * 3. Hides the original block element (opacity: 0).
+   * 4. Shows the ghost and positions it at the cursor.
+   */
   startCanvasDrag(instanceId: string, mouseX: number, mouseY: number): void { ... }
 
-  /** Called on every mousemove during a drag. Updates ghost position and drop target. */
+  /**
+   * 1. Updates `currentDrag.mouseX`/`mouseY`.
+   * 2. Calls `updateGhostPosition()` to move the ghost.
+   * 3. Calls `layoutEngine.getDropTarget(mouseX, mouseY, workspace)` to compute the target.
+   * 4. Stores the result in `currentDrag.currentDropTarget`.
+   * 5. Calls `updateDropIndicator(target)` to show/move/hide the indicator line.
+   */
   updateDrag(mouseX: number, mouseY: number): void { ... }
 
-  /** Called on mouseup. Commits the drag by adding/moving the block. */
+  /**
+   * 1. If no `currentDropTarget`, calls `cancelDrag()` and returns (dropped outside canvas).
+   * 2. If `source === 'palette'`: calls `workspaceManager.addBlock(definitionId, columnIndex, orderIndex)`.
+   * 3. If `source === 'canvas'`: calls `workspaceManager.moveBlock(instanceId, columnIndex, orderIndex)`.
+   * 4. Calls `cleanupDragVisuals()`.
+   * 5. Sets `currentDrag = null`.
+   */
   endDrag(): void { ... }
 
-  /** Called on Escape key. Aborts the drag and restores original state. */
+  /**
+   * 1. If `source === 'canvas'`, restores the original block element's opacity to 1.
+   * 2. Calls `cleanupDragVisuals()`.
+   * 3. Sets `currentDrag = null`.
+   */
   cancelDrag(): void { ... }
 
-  /** Whether a drag is currently active. */
+  /** Returns `currentDrag !== null`. */
   isDragging(): boolean { ... }
 
-  /** Get the current drag state (for UI queries). */
+  /** Returns `currentDrag` (or null). */
   getDragState(): DragState | null { ... }
 
-  /** Register the ghost overlay element. */
+  /** Stores the ghost DOM element reference for positioning during drags. */
   registerGhostElement(el: HTMLElement): void { ... }
 
-  /** Register the drop indicator line element. */
+  /** Stores the drop indicator DOM element reference. */
   registerDropIndicatorElement(el: HTMLElement): void { ... }
 
-  /** Register a canvas block element for position manipulation during drag. */
+  /** Stores a canvas block DOM element for opacity manipulation during canvas drags. */
   registerBlockElement(instanceId: string, el: HTMLElement): void { ... }
 
-  /** Unregister a block element (called on block deletion). */
+  /** Removes a block element from the map (called when a block is deleted). */
   unregisterBlockElement(instanceId: string): void { ... }
 
-  /** Position the ghost element at the cursor. */
+  /**
+   * Sets `ghostEl.style.left = mouseX + 'px'` and `ghostEl.style.top = mouseY + 'px'`
+   * (with an offset so the ghost appears beside the cursor, not directly under it).
+   */
   private updateGhostPosition(mouseX: number, mouseY: number): void { ... }
 
-  /** Show/hide and position the drop indicator line. */
+  /**
+   * If `target` is null, hides the indicator. Otherwise, shows it at `target.indicatorY`
+   * within the target column's DOM element.
+   */
   private updateDropIndicator(target: DropTarget | null): void { ... }
 
-  /** Hide all drag-related visual elements. */
+  /** Hides the ghost element and the drop indicator. Resets any block opacity changes. */
   private cleanupDragVisuals(): void { ... }
 }
 ```
 
 **`src/components/canvas/DragGhost.ts`**
+
+A semi-transparent floating preview that follows the cursor during a drag. It's a single `<div>` that gets repositioned on every mousemove. Created once at app startup and appended to the document body (so it floats above all other content). Hidden by default — shown only during an active drag.
+
 ```typescript
 export class DragGhost {
   private containerEl: HTMLElement;
 
+  /**
+   * Creates `containerEl` — `<div class="drag-ghost">` with `position: fixed`,
+   * `pointer-events: none`, `opacity: 0.7`, `z-index: 1000`, and `display: none`.
+   */
   constructor() { ... }
 
-  /** Show the ghost with a given block name and color. */
+  /**
+   * Sets `containerEl`'s text content to `name`, background color to `color`,
+   * and `display` to `'block'` (makes it visible).
+   */
   show(name: string, color: string): void { ... }
 
-  /** Hide the ghost. */
+  /** Sets `display: 'none'`. */
   hide(): void { ... }
 
   getElement(): HTMLElement { ... }
@@ -753,16 +1012,27 @@ export class DragGhost {
 ```
 
 **`src/components/canvas/DropIndicator.ts`**
+
+A horizontal line that appears between blocks during a drag to show where the dropped block will be inserted. Created once at startup and repositioned as the drag target changes. It's a thin `<div>` (e.g., 2-3px tall, colored blue or accent) with `position: absolute`.
+
 ```typescript
 export class DropIndicator {
   private containerEl: HTMLElement;
 
+  /**
+   * Creates `containerEl` — `<div class="drop-indicator">` with `position: absolute`,
+   * `height: 2px` (or 3px), a bright accent color background, `display: none`,
+   * and full column width.
+   */
   constructor() { ... }
 
-  /** Show the indicator at a given y position within a column. */
+  /**
+   * Appends (or moves) `containerEl` into `columnEl`, sets `top = y + 'px'`,
+   * and sets `display: 'block'`.
+   */
   show(y: number, columnEl: HTMLElement): void { ... }
 
-  /** Hide the indicator. */
+  /** Sets `display: 'none'`. */
   hide(): void { ... }
 
   getElement(): HTMLElement { ... }
@@ -811,12 +1081,24 @@ src/services/
 ### Class definitions
 
 **`src/components/canvas/params/InlineParam.ts`**
+
+A static factory that maps `ParameterType` enum values to the correct input component class. This is the only place where the switch/map from type to component lives — `CanvasBlock` calls `InlineParam.create()` without knowing which specific input class is used.
+
 ```typescript
 import { ParameterDefinition, ParameterType } from '../../../types/blocks';
 
 /** Factory that creates the correct input component based on parameter type. */
 export class InlineParam {
-  /** Create an input component for the given parameter definition. */
+  /**
+   * Switches on `paramDef.type`:
+   * - `TEXT` → creates a `TextInput`
+   * - `NUMBER` → creates a `NumberInput`
+   * - `BOOLEAN` → creates a `BooleanToggle`
+   * - `SELECT` → creates a `SelectDropdown`
+   * - `COLOR` → creates a `ColorPicker`
+   * Returns the component's root `HTMLElement` (via `getElement()`).
+   * Passes `paramDef`, `initialValue`, and `onChange` through to the component constructor.
+   */
   static create(
     paramDef: ParameterDefinition,
     initialValue: unknown,
@@ -826,6 +1108,9 @@ export class InlineParam {
 ```
 
 **`src/components/canvas/params/TextInput.ts`**
+
+A labeled text input row rendered inside a canvas block. Each parameter input component follows the same pattern: a container `<div>` with a `<label>` and an input element side by side.
+
 ```typescript
 import { ParameterDefinition } from '../../../types/blocks';
 
@@ -834,6 +1119,16 @@ export class TextInput {
   private inputEl: HTMLInputElement;
   private labelEl: HTMLLabelElement;
 
+  /**
+   * 1. Creates `containerEl` — `<div class="param-row">` (flexbox row, fixed height = PARAM_ROW_HEIGHT_PX).
+   * 2. Creates `labelEl` — `<label>` with text from `paramDef.name`.
+   * 3. Creates `inputEl` — `<input type="text">` with `value = initialValue`.
+   * 4. If `paramDef.validation?.pattern`, sets `inputEl.pattern`.
+   * 5. If `paramDef.validation?.required`, sets `inputEl.required`.
+   * 6. Adds an `'input'` (or `'change'`) event listener on `inputEl` that calls
+   *    `onChange(paramDef.id, inputEl.value)`.
+   * 7. Appends label and input to container.
+   */
   constructor(
     paramDef: ParameterDefinition,
     initialValue: string,
@@ -847,6 +1142,9 @@ export class TextInput {
 ```
 
 **`src/components/canvas/params/NumberInput.ts`**
+
+Same layout pattern as `TextInput` but with `<input type="number">`. Respects `min`, `max`, and `step` from the parameter's `ValidationRule`.
+
 ```typescript
 import { ParameterDefinition } from '../../../types/blocks';
 
@@ -855,6 +1153,15 @@ export class NumberInput {
   private inputEl: HTMLInputElement;
   private labelEl: HTMLLabelElement;
 
+  /**
+   * 1. Creates container, label (from `paramDef.name`), and `<input type="number">`.
+   * 2. Sets `inputEl.value = String(initialValue)`.
+   * 3. If `paramDef.validation?.min` is defined, sets `inputEl.min`.
+   * 4. If `paramDef.validation?.max` is defined, sets `inputEl.max`.
+   * 5. If `paramDef.validation?.step` is defined, sets `inputEl.step`.
+   * 6. Adds `'change'` listener that calls `onChange(paramDef.id, Number(inputEl.value))`.
+   *    (Uses `Number()` to ensure the callback receives a number, not a string.)
+   */
   constructor(
     paramDef: ParameterDefinition,
     initialValue: number,
@@ -868,6 +1175,9 @@ export class NumberInput {
 ```
 
 **`src/components/canvas/params/BooleanToggle.ts`**
+
+A labeled checkbox for boolean parameters.
+
 ```typescript
 import { ParameterDefinition } from '../../../types/blocks';
 
@@ -876,6 +1186,11 @@ export class BooleanToggle {
   private inputEl: HTMLInputElement;
   private labelEl: HTMLLabelElement;
 
+  /**
+   * 1. Creates container, label (from `paramDef.name`), and `<input type="checkbox">`.
+   * 2. Sets `inputEl.checked = initialValue`.
+   * 3. Adds `'change'` listener that calls `onChange(paramDef.id, inputEl.checked)`.
+   */
   constructor(
     paramDef: ParameterDefinition,
     initialValue: boolean,
@@ -889,6 +1204,9 @@ export class BooleanToggle {
 ```
 
 **`src/components/canvas/params/SelectDropdown.ts`**
+
+A labeled `<select>` dropdown for parameters with a fixed set of options (defined in `paramDef.options`).
+
 ```typescript
 import { ParameterDefinition } from '../../../types/blocks';
 
@@ -897,6 +1215,14 @@ export class SelectDropdown {
   private selectEl: HTMLSelectElement;
   private labelEl: HTMLLabelElement;
 
+  /**
+   * 1. Creates container and label (from `paramDef.name`).
+   * 2. Creates `selectEl` — `<select>`.
+   * 3. Iterates `paramDef.options!` (guaranteed to exist for SELECT type) and creates
+   *    an `<option value="opt.value">opt.label</option>` for each.
+   * 4. Sets `selectEl.value = initialValue`.
+   * 5. Adds `'change'` listener that calls `onChange(paramDef.id, selectEl.value)`.
+   */
   constructor(
     paramDef: ParameterDefinition,
     initialValue: string,
@@ -910,6 +1236,9 @@ export class SelectDropdown {
 ```
 
 **`src/components/canvas/params/ColorPicker.ts`**
+
+A labeled `<input type="color">` for hex color parameters.
+
 ```typescript
 import { ParameterDefinition } from '../../../types/blocks';
 
@@ -918,6 +1247,13 @@ export class ColorPicker {
   private inputEl: HTMLInputElement;
   private labelEl: HTMLLabelElement;
 
+  /**
+   * 1. Creates container and label (from `paramDef.name`).
+   * 2. Creates `inputEl` — `<input type="color">` with `value = initialValue` (e.g., `"#ff0000"`).
+   * 3. Adds `'input'` listener that calls `onChange(paramDef.id, inputEl.value)`.
+   *    (Uses `'input'` rather than `'change'` so the callback fires as the user drags
+   *    the color picker, giving live feedback.)
+   */
   constructor(
     paramDef: ParameterDefinition,
     initialValue: string,
@@ -1034,6 +1370,9 @@ src/components/canvas/
 ### Class definitions
 
 **`src/services/CommandManager.ts`**
+
+Manages the undo/redo stacks. Every user action that mutates workspace state is wrapped in a `Command` object and executed through this manager. This gives free undo/redo for all mutations. The manager emits `'command:stateChanged'` on the event bus after every execute/undo/redo so the toolbar can update button states.
+
 ```typescript
 import { Command } from '../types/commands';
 import { EventBus } from './EventBus';
@@ -1043,15 +1382,36 @@ export class CommandManager {
   private redoStack: Command[];
   private events: EventBus;
 
+  /**
+   * 1. Stores `events` reference.
+   * 2. Initializes `undoStack = []` and `redoStack = []`.
+   */
   constructor(events: EventBus) { ... }
 
-  /** Execute a command and push it onto the undo stack. Clears the redo stack. */
+  /**
+   * 1. Calls `command.execute()`.
+   * 2. Pushes `command` onto `undoStack`.
+   * 3. Clears `redoStack` (a new action invalidates the redo history).
+   * 4. Emits `'command:stateChanged'` on the event bus.
+   */
   execute(command: Command): void { ... }
 
-  /** Undo the most recent command. */
+  /**
+   * 1. Pops the last command from `undoStack`.
+   * 2. Calls `command.undo()`.
+   * 3. Pushes the command onto `redoStack`.
+   * 4. Emits `'command:stateChanged'`.
+   * No-op if `undoStack` is empty.
+   */
   undo(): void { ... }
 
-  /** Redo the most recently undone command. */
+  /**
+   * 1. Pops the last command from `redoStack`.
+   * 2. Calls `command.execute()`.
+   * 3. Pushes the command onto `undoStack`.
+   * 4. Emits `'command:stateChanged'`.
+   * No-op if `redoStack` is empty.
+   */
   redo(): void { ... }
 
   canUndo(): boolean { ... }
@@ -1060,6 +1420,9 @@ export class CommandManager {
 ```
 
 **`src/commands/AddBlockCommand.ts`**
+
+Wraps the "add a new block to the canvas" action. On execute, creates the block. On undo, removes it. Stores the created instance ID so undo knows which block to remove, and so re-execute can restore the same ID.
+
 ```typescript
 import { Command } from '../types/commands';
 import { WorkspaceManager } from '../services/WorkspaceManager';
@@ -1073,6 +1436,10 @@ export class AddBlockCommand implements Command {
   private orderIndex: number;
   private createdInstanceId: string | null;
 
+  /**
+   * Stores all parameters. Sets `createdInstanceId = null` (populated on first execute).
+   * Sets `description` to something like `"Add ${definitionId} to column ${columnIndex}"`.
+   */
   constructor(
     workspaceManager: WorkspaceManager,
     definitionId: string,
@@ -1080,12 +1447,21 @@ export class AddBlockCommand implements Command {
     orderIndex: number
   ) { ... }
 
+  /**
+   * Calls `workspaceManager._internalAddBlock(...)` (the internal method that bypasses
+   * CommandManager). Stores the returned instance's ID in `createdInstanceId`.
+   */
   execute(): void { ... }
+
+  /** Calls `workspaceManager._internalRemoveBlock(createdInstanceId)`. */
   undo(): void { ... }
 }
 ```
 
 **`src/commands/RemoveBlockCommand.ts`**
+
+Wraps block deletion. On execute, removes the block. On undo, re-creates it at the same position with the same parameter values. Snapshots the full `BlockInstance` before removal so undo has all the data it needs.
+
 ```typescript
 import { Command } from '../types/commands';
 import { WorkspaceManager } from '../services/WorkspaceManager';
@@ -1100,14 +1476,33 @@ export class RemoveBlockCommand implements Command {
   private removedColumnIndex: number;
   private removedOrderIndex: number;
 
+  /**
+   * Stores `instanceId`. Sets `removedBlock = null` (populated on execute).
+   * `removedColumnIndex` and `removedOrderIndex` are also populated on execute
+   * by reading the block's current position before removing it.
+   */
   constructor(workspaceManager: WorkspaceManager, instanceId: string) { ... }
 
+  /**
+   * 1. Reads the block via `workspaceManager.getBlock(instanceId)`.
+   * 2. Snapshots `removedBlock = deepCopy(block)`, `removedColumnIndex`, `removedOrderIndex`.
+   * 3. Calls `workspaceManager._internalRemoveBlock(instanceId)`.
+   */
   execute(): void { ... }
+
+  /**
+   * Re-creates the block: calls `workspaceManager._internalAddBlock(...)` using the
+   * snapshotted `removedBlock.definitionId`, `removedColumnIndex`, `removedOrderIndex`,
+   * and restores `parameterValues` from the snapshot.
+   */
   undo(): void { ... }
 }
 ```
 
 **`src/commands/MoveBlockCommand.ts`**
+
+Wraps block movement (reorder within column or cross-column move). Records the from/to positions so both execute and undo are simple `moveBlock` calls with swapped arguments.
+
 ```typescript
 import { Command } from '../types/commands';
 import { WorkspaceManager } from '../services/WorkspaceManager';
@@ -1122,6 +1517,10 @@ export class MoveBlockCommand implements Command {
   private toColumn: number;
   private toOrder: number;
 
+  /**
+   * Stores all parameters. The caller (DragManager) provides both the original
+   * position (from) and the target position (to).
+   */
   constructor(
     workspaceManager: WorkspaceManager,
     instanceId: string,
@@ -1131,12 +1530,18 @@ export class MoveBlockCommand implements Command {
     toOrder: number
   ) { ... }
 
+  /** Calls `workspaceManager._internalMoveBlock(instanceId, toColumn, toOrder)`. */
   execute(): void { ... }
+
+  /** Calls `workspaceManager._internalMoveBlock(instanceId, fromColumn, fromOrder)`. */
   undo(): void { ... }
 }
 ```
 
 **`src/commands/CopyBlockCommand.ts`**
+
+Wraps block duplication. On execute, copies the block (placed directly below the original). On undo, removes the copy. Stores the copy's instance ID for undo.
+
 ```typescript
 import { Command } from '../types/commands';
 import { WorkspaceManager } from '../services/WorkspaceManager';
@@ -1148,14 +1553,24 @@ export class CopyBlockCommand implements Command {
   private sourceInstanceId: string;
   private createdInstanceId: string | null;
 
+  /** Stores `sourceInstanceId`. Sets `createdInstanceId = null`. */
   constructor(workspaceManager: WorkspaceManager, sourceInstanceId: string) { ... }
 
+  /**
+   * Calls `workspaceManager._internalCopyBlock(sourceInstanceId)`.
+   * Stores the returned copy's ID in `createdInstanceId`.
+   */
   execute(): void { ... }
+
+  /** Calls `workspaceManager._internalRemoveBlock(createdInstanceId)`. */
   undo(): void { ... }
 }
 ```
 
 **`src/commands/UpdateParamCommand.ts`**
+
+Wraps a single parameter value change. Stores both old and new values so execute sets the new value and undo restores the old value.
+
 ```typescript
 import { Command } from '../types/commands';
 import { WorkspaceManager } from '../services/WorkspaceManager';
@@ -1169,6 +1584,10 @@ export class UpdateParamCommand implements Command {
   private oldValue: unknown;
   private newValue: unknown;
 
+  /**
+   * Stores all parameters. The caller reads the old value from the model before
+   * creating this command and passes both old and new values in.
+   */
   constructor(
     workspaceManager: WorkspaceManager,
     instanceId: string,
@@ -1177,12 +1596,18 @@ export class UpdateParamCommand implements Command {
     newValue: unknown
   ) { ... }
 
+  /** Calls `workspaceManager._internalUpdateParameter(instanceId, paramId, newValue)`. */
   execute(): void { ... }
+
+  /** Calls `workspaceManager._internalUpdateParameter(instanceId, paramId, oldValue)`. */
   undo(): void { ... }
 }
 ```
 
 **`src/components/canvas/CanvasToolbar.ts`**
+
+A toolbar rendered above the canvas columns. Contains undo/redo buttons and listens for keyboard shortcuts (Ctrl+Z, Ctrl+Y / Ctrl+Shift+Z). Buttons are grayed out (disabled) when their respective stack is empty.
+
 ```typescript
 import { CommandManager } from '../../services/CommandManager';
 import { EventBus } from '../../services/EventBus';
@@ -1193,9 +1618,22 @@ export class CanvasToolbar {
   private redoBtn: HTMLButtonElement;
   private commandManager: CommandManager;
 
+  /**
+   * 1. Stores `commandManager` reference.
+   * 2. Creates `containerEl` — `<div class="canvas-toolbar">`.
+   * 3. Creates `undoBtn` — `<button>` with text "Undo". Click listener calls `commandManager.undo()`.
+   * 4. Creates `redoBtn` — `<button>` with text "Redo". Click listener calls `commandManager.redo()`.
+   * 5. Appends both buttons to `containerEl`, appends `containerEl` to `container`.
+   * 6. Subscribes to `'command:stateChanged'` on `events` to call `updateButtonStates()`.
+   * 7. Adds a `keydown` listener on `document` for Ctrl+Z (undo) and Ctrl+Y / Ctrl+Shift+Z (redo).
+   * 8. Calls `updateButtonStates()` to set initial disabled states.
+   */
   constructor(container: HTMLElement, commandManager: CommandManager, events: EventBus) { ... }
 
-  /** Update button enabled/disabled state based on stack status. */
+  /**
+   * Sets `undoBtn.disabled = !commandManager.canUndo()` and
+   * `redoBtn.disabled = !commandManager.canRedo()`.
+   */
   private updateButtonStates(): void { ... }
 
   getElement(): HTMLElement { ... }
@@ -1250,6 +1688,9 @@ src/services/
 ### Class definitions
 
 **`src/services/SerializationService.ts`**
+
+Handles conversion between the in-memory `Workspace` model and its JSON string representation. The serialized format includes a `version` field for future migration support. Block instances are stored as arrays within their column arrays (position is implicit from array index, so `columnIndex` and `orderIndex` are not serialized). This service is stateless — it has no constructor dependencies.
+
 ```typescript
 import { Workspace } from '../types/workspace';
 import { BlockRegistry } from './BlockRegistry';
@@ -1260,18 +1701,52 @@ export interface ValidationResult {
 }
 
 export class SerializationService {
-  /** Convert a workspace to its JSON string representation. */
+  /**
+   * Converts the workspace to a JSON string. The output format:
+   * ```json
+   * {
+   *   "version": 1,
+   *   "config": { "columnCount": 3, "columnWidthPx": 280, ... },
+   *   "columns": [
+   *     [
+   *       { "id": "block-1", "definitionId": "filter", "parameterValues": { ... } },
+   *       ...
+   *     ],
+   *     ...
+   *   ]
+   * }
+   * ```
+   * Note: `columnIndex` and `orderIndex` are omitted — they're derived from array position.
+   */
   serialize(workspace: Workspace): string { ... }
 
-  /** Parse a JSON string and reconstruct a Workspace. Requires registry to resolve definition IDs. */
+  /**
+   * Parses the JSON string and reconstructs a `Workspace` object.
+   * 1. Parses JSON and reads `version` field (currently expects 1).
+   * 2. Reconstructs `WorkspaceConfig` from the `config` object.
+   * 3. For each column array, creates `Column` objects with `BlockInstance` entries,
+   *    setting `columnIndex` and `orderIndex` from the array positions.
+   * 4. Validates that each block's `definitionId` exists in the `registry` (throws if not found).
+   * 5. Returns the reconstructed `Workspace`.
+   */
   deserialize(json: string, registry: BlockRegistry): Workspace { ... }
 
-  /** Validate a JSON string against the expected schema without fully deserializing. */
+  /**
+   * Lightweight validation without full deserialization. Checks:
+   * - Valid JSON syntax
+   * - Has `version` field (number)
+   * - Has `config` object with required fields
+   * - Has `columns` array
+   * Returns `{ valid: true, errors: [] }` or `{ valid: false, errors: [...] }`.
+   */
   validate(json: string): ValidationResult { ... }
 }
 ```
 
 **`src/services/host/HostBridge.ts`**
+
+The abstraction layer between the app and its host environment. The app doesn't know or care whether it's running in a standalone browser tab or inside a VS Code webview — it talks to a `HostBridge`. This interface has two implementations: `WebHostBridge` (localStorage, Phase 10) and `VSCodeHostBridge` (postMessage, Phase 12).
+
 ```typescript
 import { Workspace } from '../../types/workspace';
 
@@ -1291,6 +1766,9 @@ export interface HostBridge {
 ```
 
 **`src/services/host/WebHostBridge.ts`**
+
+The standalone-browser implementation of `HostBridge`. Persists workspace state to `localStorage` as a JSON string. Used when the app is opened directly in a browser (not inside VS Code).
+
 ```typescript
 import { Workspace } from '../../types/workspace';
 import { HostBridge } from './HostBridge';
@@ -1303,11 +1781,28 @@ export class WebHostBridge implements HostBridge {
   private registry: BlockRegistry;
   private loadCallback: ((workspace: Workspace) => void) | null;
 
+  /**
+   * Stores `serializer` and `registry` references. Sets `loadCallback = null`.
+   */
   constructor(serializer: SerializationService, registry: BlockRegistry) { ... }
 
+  /**
+   * Serializes the workspace via `serializer.serialize()` and writes the
+   * JSON string to `localStorage` under `STORAGE_KEY`.
+   */
   sendState(workspace: Workspace): void { ... }
+
+  /** Stores the callback for later use by `requestLoad()`. */
   onLoadState(callback: (workspace: Workspace) => void): void { ... }
+
+  /** Delegates to `sendState()` (in the web environment, save is immediate). */
   requestSave(): void { ... }
+
+  /**
+   * Reads `localStorage.getItem(STORAGE_KEY)`. If a value exists, deserializes it
+   * via `serializer.deserialize(json, registry)` and calls `loadCallback(workspace)`.
+   * If no saved state exists, does nothing (app starts with empty workspace).
+   */
   requestLoad(): void { ... }
 }
 ```
@@ -1344,14 +1839,23 @@ src/components/canvas/
 ### Class definitions
 
 **`src/components/palette/PaletteSearchBar.ts`**
+
+A text input at the top of the palette panel for filtering blocks by name. Fires the `onSearch` callback on every keystroke (via `'input'` event) with the current query string. `BlockPalette` uses this to toggle visibility of `PaletteBlock` elements.
+
 ```typescript
 export class PaletteSearchBar {
   private containerEl: HTMLElement;
   private inputEl: HTMLInputElement;
 
+  /**
+   * 1. Creates `containerEl` — `<div class="palette-search">`.
+   * 2. Creates `inputEl` — `<input type="text" placeholder="Search blocks...">`.
+   * 3. Adds an `'input'` event listener that calls `onSearch(inputEl.value)` on every keystroke.
+   * 4. Appends `inputEl` to `containerEl`.
+   */
   constructor(onSearch: (query: string) => void) { ... }
 
-  /** Clear the search input and trigger the callback with empty string. */
+  /** Sets `inputEl.value = ''` and calls the search callback with `''`. */
   clear(): void { ... }
 
   getElement(): HTMLElement { ... }
@@ -1359,13 +1863,22 @@ export class PaletteSearchBar {
 ```
 
 **`src/components/canvas/ConnectionPort.ts`**
+
+A small visual dot/circle rendered at the top or bottom edge of a canvas block to indicate data flow connectivity. A top port means the block has a predecessor in the column; a bottom port means it has a successor. These are purely visual — no interactive behavior.
+
 ```typescript
 export class ConnectionPort {
   private containerEl: HTMLElement;
 
+  /**
+   * 1. Creates `containerEl` — `<div class="connection-port connection-port--${position}">`.
+   * 2. Styled as a small circle (e.g., 8px wide, 8px tall, border-radius: 50%).
+   * 3. Positioned absolutely at the top-center or bottom-center of the parent block.
+   * 4. Starts hidden (`display: none`).
+   */
   constructor(position: 'top' | 'bottom') { ... }
 
-  /** Show or hide the port. */
+  /** Sets `display: 'block'` or `'none'` based on `visible`. */
   setVisible(visible: boolean): void { ... }
 
   getElement(): HTMLElement { ... }
@@ -1407,6 +1920,9 @@ src/index.ts                 # (modified — add environment detection)
 ### Class definitions
 
 **`src/services/host/VSCodeHostBridge.ts`**
+
+The VS Code webview implementation of `HostBridge`. Communicates with the VS Code extension host via `postMessage` (outgoing) and `window.addEventListener('message', ...)` (incoming). Also uses VS Code's `getState()`/`setState()` API for webview state persistence across tab switches.
+
 ```typescript
 import { Workspace } from '../../types/workspace';
 import { HostBridge } from './HostBridge';
@@ -1425,14 +1941,44 @@ export class VSCodeHostBridge implements HostBridge {
   private registry: BlockRegistry;
   private loadCallback: ((workspace: Workspace) => void) | null;
 
+  /**
+   * 1. Calls `acquireVsCodeApi()` and stores the result in `vscodeApi`.
+   *    (This function can only be called once per webview session — VS Code enforces this.)
+   * 2. Stores `serializer` and `registry` references.
+   * 3. Sets `loadCallback = null`.
+   * 4. Calls `setupMessageListener()` to start listening for messages from the extension host.
+   */
   constructor(serializer: SerializationService, registry: BlockRegistry) { ... }
 
+  /**
+   * 1. Serializes the workspace via `serializer.serialize()`.
+   * 2. Calls `vscodeApi.postMessage({ type: 'save', payload: json })` to send to the extension host.
+   * 3. Also calls `vscodeApi.setState(json)` to persist in webview state (survives tab switches).
+   */
   sendState(workspace: Workspace): void { ... }
+
+  /** Stores the callback for later use when a `'load'` message arrives. */
   onLoadState(callback: (workspace: Workspace) => void): void { ... }
+
+  /** Calls `vscodeApi.postMessage({ type: 'ready' })` to signal the extension that the webview is ready to receive data. */
   requestSave(): void { ... }
+
+  /**
+   * 1. First checks `vscodeApi.getState()` for previously persisted state.
+   *    If found, deserializes and calls `loadCallback`.
+   * 2. If no state, sends a `{ type: 'ready' }` message to the extension host,
+   *    which should respond with a `'load'` message handled by `setupMessageListener`.
+   */
   requestLoad(): void { ... }
 
-  /** Listen for messages from the extension host. */
+  /**
+   * Adds a `window.addEventListener('message', ...)` listener.
+   * When a message with `event.data.type === 'load'` arrives:
+   * 1. Deserializes `event.data.payload` via `serializer.deserialize(payload, registry)`.
+   * 2. Calls `loadCallback(workspace)` if registered.
+   * When a message with `event.data.type === 'config'` arrives:
+   * handles config updates (future use).
+   */
   private setupMessageListener(): void { ... }
 }
 ```
