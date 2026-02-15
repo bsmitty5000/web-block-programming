@@ -1,6 +1,5 @@
 import { BlockPalette } from "./palette/BlockPalette";
 import { BlockRegistry } from "../services/BlockRegistry";
-import { BlockDefinitionConfig } from "../types/blocks";
 import { WorkspaceConfig } from "../types/workspace";
 import { LayoutEngine } from "../services/LayoutEngine";
 import { WorkspaceManager } from "../services/WorkspaceManager";
@@ -9,10 +8,6 @@ import { DragManager } from "../services/DragManager";
 import { CanvasPanel } from "./canvas/CanvasPanel";
 import { DragGhost } from "./canvas/DragGhost";
 import { DropIndicator } from "./canvas/DropIndicator";
-import blocksData from '../config/blocks.json';
-
-const sampleBlocks = blocksData as BlockDefinitionConfig;
-
 const DEFAULT_WORKSPACE_CONFIG: WorkspaceConfig = {
   columnCount: 3,
   columnWidthPx: 280,
@@ -26,7 +21,7 @@ export class App {
   private canvasContainerEl: HTMLElement;
   private dragManager: DragManager;
 
-  constructor(container: HTMLElement) {
+  constructor(container: HTMLElement, registry: BlockRegistry) {
     this.rootEl = container;
     this.rootEl.classList.add('app');
 
@@ -38,10 +33,6 @@ export class App {
 
     this.rootEl.appendChild(this.paletteContainerEl);
     this.rootEl.appendChild(this.canvasContainerEl);
-
-    // Services
-    const registry = new BlockRegistry();
-    registry.loadFromConfig(sampleBlocks);
 
     const events = new EventBus();
     const layoutEngine = new LayoutEngine(registry);
