@@ -3,9 +3,10 @@
   "version": "0.1.0",
   "private": true,
   "type": "module",
+  "types": "dist/index.d.ts",
   "scripts": {
     "dev": "node esbuild.config.mjs --dev",
-    "build": "node esbuild.config.mjs",
+    "build": "node esbuild.config.mjs && tsc",
     "test": "vitest run",
     "test:watch": "vitest"
   },

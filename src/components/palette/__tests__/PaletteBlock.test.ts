@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import { PaletteBlock } from '../PaletteBlock';
-import { BlockDefinition, ParameterType } from '../../../types/blocks';
+import { BlockDefinition } from '../../../types/blocks';
 
 function makeBlock(overrides: Partial<BlockDefinition> & { id: string }): BlockDefinition {
   return {

@@ -11,8 +11,8 @@ describe('CanvasPanel', () => {
   let manager: WorkspaceManager;
 
   beforeEach(() => {
-    const registry = new BlockRegistry();
     const events = new EventBus();
+    const registry = new BlockRegistry(events);
     const layoutEngine = new LayoutEngine(registry);
     const config: WorkspaceConfig = {
       columnCount: 3,

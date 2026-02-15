@@ -2,6 +2,7 @@ import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import { VSCodeHostBridge } from '../VSCodeHostBridge';
 import { SerializationService } from '../../SerializationService';
 import { BlockRegistry } from '../../BlockRegistry';
+import { EventBus } from '../../EventBus';
 import { Workspace } from '../../../types/workspace';
 import { BlockDefinition } from '../../../types/blocks';
 
@@ -66,7 +67,8 @@ describe('VSCodeHostBridge', () => {
     installMockVsCodeApi();
 
     serializer = new SerializationService();
-    registry = new BlockRegistry();
+    const events = new EventBus();
+    registry = new BlockRegistry(events);
     registry.register(makeBlock({ id: 'filter', category: 'Transform' }));
     bridge = new VSCodeHostBridge(serializer, registry);
   });
@@ -117,7 +119,7 @@ describe('VSCodeHostBridge', () => {
       bridge.onLoadState(callback);
 
       window.dispatchEvent(new MessageEvent('message', {
-        data: { type: 'config', payload: '{}' },
+        data: { type: 'config', payload: { blocks: [] } },
       }));
 
       expect(callback).not.toHaveBeenCalled();

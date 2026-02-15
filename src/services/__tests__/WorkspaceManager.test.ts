@@ -60,12 +60,12 @@ describe('WorkspaceManager', () => {
   });
 
   beforeEach(() => {
-    registry = new BlockRegistry();
+    events = new EventBus();
+    registry = new BlockRegistry(events);
     registry.register(filterDef);
     registry.register(logDef);
     registry.register(sortDef);
     config = makeConfig();
-    events = new EventBus();
     layoutEngine = new LayoutEngine(registry);
     manager = new WorkspaceManager(config, registry, layoutEngine, events);
   });

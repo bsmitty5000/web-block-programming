@@ -1,10 +1,10 @@
-import { describe, it, expect, beforeEach, vi } from 'vitest';
+import { describe, it, expect, beforeEach } from 'vitest';
 import { DragManager } from '../DragManager';
 import { WorkspaceManager } from '../WorkspaceManager';
 import { BlockRegistry } from '../BlockRegistry';
 import { LayoutEngine } from '../LayoutEngine';
 import { EventBus } from '../EventBus';
-import { BlockDefinition, ParameterType } from '../../types/blocks';
+import { BlockDefinition } from '../../types/blocks';
 import { WorkspaceConfig } from '../../types/workspace';
 
 function makeBlock(overrides: Partial<BlockDefinition> & { id: string }): BlockDefinition {
@@ -31,11 +31,10 @@ describe('DragManager', () => {
   const logDef = makeBlock({ id: 'log', name: 'Log', color: '#333333' });
 
   beforeEach(() => {
-    registry = new BlockRegistry();
+    events = new EventBus();
+    registry = new BlockRegistry(events);
     registry.register(filterDef);
     registry.register(logDef);
-
-    events = new EventBus();
     layoutEngine = new LayoutEngine(registry);
 
     const config: WorkspaceConfig = {

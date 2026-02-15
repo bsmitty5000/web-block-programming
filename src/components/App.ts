@@ -8,20 +8,28 @@ import { DragManager } from "../services/DragManager";
 import { CanvasPanel } from "./canvas/CanvasPanel";
 import { DragGhost } from "./canvas/DragGhost";
 import { DropIndicator } from "./canvas/DropIndicator";
-const DEFAULT_WORKSPACE_CONFIG: WorkspaceConfig = {
+import { HostBridge } from "../services/host/HostBridge";
+
+const DEFAULT_WORKSPACE_CONFIG: WorkspaceConfig = 
+{
   columnCount: 3,
   columnWidthPx: 280,
   blockGapPx: 8,
   canvasPaddingPx: 20,
 };
 
-export class App {
+export class App 
+{
   private rootEl: HTMLElement;
   private paletteContainerEl: HTMLElement;
   private canvasContainerEl: HTMLElement;
   private dragManager: DragManager;
+  private hostBridge: HostBridge | null;
 
-  constructor(container: HTMLElement, registry: BlockRegistry) {
+  constructor(container: HTMLElement, registry: BlockRegistry, events: EventBus, hostBridge: HostBridge | null)
+  {
+    this.hostBridge = hostBridge;
+
     this.rootEl = container;
     this.rootEl.classList.add('app');
 
@@ -33,8 +41,6 @@ export class App {
 
     this.rootEl.appendChild(this.paletteContainerEl);
     this.rootEl.appendChild(this.canvasContainerEl);
-
-    const events = new EventBus();
     const layoutEngine = new LayoutEngine(registry);
     const workspaceManager = new WorkspaceManager(
       DEFAULT_WORKSPACE_CONFIG, registry, layoutEngine, events
@@ -48,6 +54,20 @@ export class App {
       this.dragManager.startCanvasDrag(instanceId, mouseX, mouseY);
     });
 
+    if(this.hostBridge)
+    {
+      this.hostBridge.onLoadState((workspace) =>
+      {
+        workspaceManager.loadWorkspace(workspace);
+      });
+      this.hostBridge.requestLoad();
+
+      events.on('workspace:changed', () =>
+      {
+        this.hostBridge?.sendState(workspaceManager.getWorkspace());
+      });
+    }
+
     // Ghost and drop indicator
     const ghost = new DragGhost();
     const indicator = new DropIndicator();
@@ -60,7 +80,7 @@ export class App {
     this.dragManager.registerCanvasElement(this.canvasContainerEl);
 
     // Palette with drag wiring
-    new BlockPalette(this.paletteContainerEl, registry, (definitionId, mouseX, mouseY) => {
+    new BlockPalette(this.paletteContainerEl, registry, events, (definitionId, mouseX, mouseY) => {
       this.dragManager.startPaletteDrag(definitionId, mouseX, mouseY);
     });
 

@@ -13,7 +13,6 @@ export class VSCodeHostBridge implements HostBridge {
     private vscodeApi: ReturnType<typeof acquireVsCodeApi>;
     private serializer: SerializationService;
     private registry: BlockRegistry;
-    private lastWorkspace: Workspace | null;
     private loadCallback: ((workspace: Workspace) => void) | null;
 
     /**
@@ -28,7 +27,6 @@ export class VSCodeHostBridge implements HostBridge {
         this.vscodeApi = acquireVsCodeApi();
         this.serializer = serializer;
         this.registry = registry;
-        this.lastWorkspace = null;
         this.loadCallback = null;
         this.setupMessageListener();
     }
@@ -40,7 +38,6 @@ export class VSCodeHostBridge implements HostBridge {
      */
     sendState(workspace: Workspace): void
     { 
-        this.lastWorkspace = workspace;
         const workspaceJson = this.serializer.serialize(workspace);
         this.vscodeApi.postMessage({ type: 'save', payload: workspaceJson });
         this.vscodeApi.setState(workspaceJson);
@@ -70,12 +67,11 @@ export class VSCodeHostBridge implements HostBridge {
         if(workspaceJson)
         {
             const workspace = this.serializer.deserialize(workspaceJson as string, this.registry);
-            this.lastWorkspace = workspace;
-            this.loadCallback?.(workspace);
+                this.loadCallback?.(workspace);
         }
         else
         {
-            this.requestSave();
+            this.vscodeApi.postMessage({ type: 'ready' });
         }
     }
 
@@ -98,7 +94,9 @@ export class VSCodeHostBridge implements HostBridge {
             }
             else if(event.data.type === 'config')
             {
-                // Future use: handle config updates from extension host
+                console.log('Loading from config');
+                console.log(`payload: ${event.data.payload}`);
+                this.registry.loadFromConfig(event.data.payload);
             }
         });
     }

@@ -1,6 +1,7 @@
 import { describe, it, expect, beforeEach } from 'vitest';
 import { LayoutEngine } from '../LayoutEngine';
 import { BlockRegistry } from '../BlockRegistry';
+import { EventBus } from '../EventBus';
 import { BlockDefinition, ParameterType } from '../../types/blocks';
 import { BlockInstance, Column, Workspace, WorkspaceConfig } from '../../types/workspace';
 
@@ -67,7 +68,8 @@ describe('LayoutEngine', () => {
   });
 
   beforeEach(() => {
-    registry = new BlockRegistry();
+    const events = new EventBus();
+    registry = new BlockRegistry(events);
     registry.register(zeroDef);
     registry.register(oneDef);
     registry.register(threeDef);

@@ -1,5 +1,6 @@
 import { describe, it, expect, beforeEach } from 'vitest';
 import { BlockRegistry } from '../BlockRegistry';
+import { EventBus } from '../EventBus';
 import { BlockDefinition, BlockDefinitionConfig, ParameterType } from '../../types/blocks';
 
 function makeBlock(overrides: Partial<BlockDefinition> & { id: string }): BlockDefinition {
@@ -15,9 +16,11 @@ function makeBlock(overrides: Partial<BlockDefinition> & { id: string }): BlockD
 
 describe('BlockRegistry', () => {
   let registry: BlockRegistry;
+  let events: EventBus;
 
   beforeEach(() => {
-    registry = new BlockRegistry();
+    events = new EventBus();
+    registry = new BlockRegistry(events);
   });
 
   describe('register & get', () => {

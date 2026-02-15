@@ -2,6 +2,7 @@ import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { WebHostBridge } from '../WebHostBridge';
 import { SerializationService } from '../../SerializationService';
 import { BlockRegistry } from '../../BlockRegistry';
+import { EventBus } from '../../EventBus';
 import { Workspace } from '../../../types/workspace';
 import { BlockDefinition } from '../../../types/blocks';
 
@@ -44,7 +45,8 @@ describe('WebHostBridge', () => {
   beforeEach(() => {
     localStorage.clear();
     serializer = new SerializationService();
-    registry = new BlockRegistry();
+    const events = new EventBus();
+    registry = new BlockRegistry(events);
     registry.register(makeBlock({ id: 'filter', category: 'Transform' }));
     bridge = new WebHostBridge(serializer, registry);
   });

@@ -1,6 +1,7 @@
 import { describe, it, expect, beforeEach } from 'vitest';
 import { SerializationService } from '../SerializationService';
 import { BlockRegistry } from '../BlockRegistry';
+import { EventBus } from '../EventBus';
 import { Workspace } from '../../types/workspace';
 import { BlockDefinition, ParameterType } from '../../types/blocks';
 
@@ -53,7 +54,8 @@ describe('SerializationService', () => {
 
   beforeEach(() => {
     service = new SerializationService();
-    registry = new BlockRegistry();
+    const events = new EventBus();
+    registry = new BlockRegistry(events);
     registry.register(makeBlock({
       id: 'filter',
       name: 'Filter',

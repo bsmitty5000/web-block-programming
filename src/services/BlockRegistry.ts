@@ -1,14 +1,17 @@
 import { BlockDefinition, BlockDefinitionConfig } from "../types/blocks";
+import { EventBus } from "./EventBus";
 
-export class BlockRegistry 
+export class BlockRegistry
 {
   private definitions: Map<string, BlockDefinition>;
   private categories: Map<string, BlockDefinition[]>;
+  private events: EventBus;
 
-  constructor() 
+  constructor(events: EventBus)
   {
     this.definitions = new Map();
     this.categories = new Map();
+    this.events = events;
   }
   
   register(definition: BlockDefinition): void
@@ -71,5 +74,6 @@ export class BlockRegistry
     {
       this.register(block);
     });
+    this.events.emit('registry:loaded');
   }
 }

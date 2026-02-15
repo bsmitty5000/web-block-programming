@@ -27,19 +27,38 @@ export class WorkspaceManager {
         this.columnElements = new Map();
         this.onBlockDragStart = null;
 
-        // Initialize workspace object first
         this.workspace = {
             config,
             columns: []
         };
-
-        // Then populate columns
+        
         for (let i = 0; i < config.columnCount; i++) 
         {
             this.workspace.columns.push({
                 index: i,
                 blocks: []
             });
+        }
+    }
+
+    loadWorkspace(workspace: Workspace): void
+    {
+        for(let column of this.workspace.columns)
+        {
+            const blockIds = column.blocks.map(b => b.id);
+            for(const id of blockIds)
+            {
+                this.removeBlock(id);
+            }
+        }
+
+        for(let column of workspace.columns)
+        {
+            for(let colBlock of column.blocks)
+            {
+                const newBlock = this.addBlock(colBlock.definitionId, column.index, colBlock.orderIndex);
+                newBlock.parameterValues = colBlock.parameterValues;
+            }
         }
     }
 
